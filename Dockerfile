@@ -10,18 +10,19 @@
 FROM node:24-slim AS build
 WORKDIR /app
 
-# better-sqlite3 and sharp resolve prebuilt binaries for this platform;
-# the toolchain is the fallback if a prebuild is ever missing.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 make g++ ca-certificates \
- && rm -rf /var/lib/apt/lists/*
-
 # Manifests first: the dependency layer then caches across source edits.
 COPY package.json package-lock.json ./
 COPY packages/core/package.json packages/core/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
-RUN npm ci
+
+# better-sqlite3 and sharp resolve prebuilt binaries for this platform, so the
+# ~300 MB compiler toolchain is installed only as a fallback if a prebuild is
+# ever missing (keeps the build small on disk-constrained builders).
+RUN npm ci || ( apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && npm ci )
 
 COPY . .
 
